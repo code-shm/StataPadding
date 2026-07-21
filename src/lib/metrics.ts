@@ -27,6 +27,9 @@ export const POSITION_COLORS: Record<Position, string> = {
   FWD: "#f0559b",
 };
 
+// Up to 4 players in a multi-comparison.
+export const PLAYER_COLORS = ["#22d3ee", "#f0559b", "#4ade80", "#ffd75e"];
+
 // ---- Similarity (playing style) ----
 
 function dot(a: number[], b: number[]): number {

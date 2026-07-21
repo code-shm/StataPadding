@@ -22,7 +22,16 @@ const OUT_FILE = join(OUT_DIR, "players.json");
 
 const SEASON = process.env.SEASON || "2025"; // Understat season = starting year
 const MIN_MINUTES = 900; // ~10 full matches
+const HISTORY_SEASONS = 5; // seasons of career trajectory to pull (incl. current)
+const HISTORY_MIN_MINUTES = 450; // include a season in a trajectory if ≥ this
 const INCLUDE_GK = false; // Understat has no keeper metrics — outfield only for now
+
+const seasonList = () => {
+  const y = Number(SEASON);
+  return Array.from({ length: HISTORY_SEASONS }, (_, i) => String(y - HISTORY_SEASONS + 1 + i));
+};
+const seasonLabel = (y) => `${y}/${String((Number(y) + 1) % 100).padStart(2, "0")}`;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const LEAGUES = [
   { code: "EPL", name: "Premier League", country: "England" },
@@ -251,21 +260,82 @@ async function main() {
   const fplIndex = await buildFplIndex();
   console.log(`  FPL players with minutes: ${fplIndex.list.length}`);
 
-  // ---- Fetch Understat leagues ----
-  const rows = [];
-  for (const lg of LEAGUES) {
-    process.stdout.write(`→ Understat ${lg.code} ${SEASON} … `);
-    const d = await fetchJSON(
-      `https://understat.com/getLeagueData/${lg.code}/${SEASON}`,
-      `https://understat.com/league/${lg.code}/${SEASON}`
-    );
-    console.log(`${d.players.length} players`);
-    for (const p of d.players) {
-      p._league = lg.code;
-      p._leagueName = lg.name;
-      rows.push(p);
+  // ---- Fetch Understat: current season (for the dataset) + past seasons (for
+  // career trajectories). One request per league-season; polite spacing. ----
+  const SEASONS = seasonList();
+  console.log(`→ Understat seasons: ${SEASONS.map(seasonLabel).join(", ")}`);
+  const rows = []; // current-season rows, used to build the dataset
+  const history = new Map(); // understatId -> { season -> aggregated record }
+
+  for (const season of SEASONS) {
+    process.stdout.write(`  ${seasonLabel(season)} `);
+    for (const lg of LEAGUES) {
+      const d = await fetchJSON(
+        `https://understat.com/getLeagueData/${lg.code}/${season}`,
+        `https://understat.com/league/${lg.code}/${season}`
+      );
+      for (const p of d.players) {
+        // aggregate per (player, season), merging mid-season transfers
+        const rec = history.get(p.id) || {};
+        const s = rec[season] || {
+          mins: 0, goals: 0, xG: 0, xA: 0, npxG: 0, assists: 0, shots: 0, kp: 0,
+          league: lg.code, team: "", _mx: -1,
+        };
+        const mins = num(p.time);
+        s.mins += mins;
+        s.goals += num(p.goals);
+        s.xG += num(p.xG);
+        s.xA += num(p.xA);
+        s.npxG += num(p.npxG);
+        s.assists += num(p.assists);
+        s.shots += num(p.shots);
+        s.kp += num(p.key_passes);
+        if (mins > s._mx) {
+          s._mx = mins;
+          s.league = lg.code;
+          s.team = (p.team_title || "").split(",").pop().trim();
+        }
+        rec[season] = s;
+        history.set(p.id, rec);
+
+        if (season === SEASON) {
+          p._league = lg.code;
+          p._leagueName = lg.name;
+          rows.push(p);
+        }
+      }
+      process.stdout.write(".");
+      await sleep(120);
     }
+    console.log("");
   }
+
+  const buildHistory = (understatId) => {
+    const rec = history.get(understatId);
+    if (!rec) return [];
+    return Object.keys(rec)
+      .sort()
+      .filter((season) => rec[season].mins >= HISTORY_MIN_MINUTES)
+      .map((season) => {
+        const s = rec[season];
+        const p90 = s.mins / 90 || 1;
+        return {
+          season: seasonLabel(season),
+          league: s.league,
+          team: s.team,
+          minutes: s.mins,
+          per90: {
+            goals: round(s.goals / p90),
+            xG: round(s.xG / p90),
+            assists: round(s.assists / p90),
+            xA: round(s.xA / p90),
+            npxG: round(s.npxG / p90),
+            goalInvolvements: round((s.goals + s.assists) / p90),
+          },
+          totals: { goals: s.goals, assists: s.assists, xG: round(s.xG, 1) },
+        };
+      });
+  };
 
   // Dedupe by Understat id (players who switched leagues appear twice) → keep max minutes
   const byId = new Map();
@@ -317,6 +387,7 @@ async function main() {
       price: fpl?.price ?? null,
       minutes,
       games: num(u.games),
+      history: buildHistory(u.id),
       totals: {
         goals,
         assists,
@@ -446,6 +517,7 @@ async function main() {
       leagueCounts,
       styleDims: STYLE_DIMS,
       radarAxes: ["Goals", "Assists", "Shot Threat", "Chance Creation", "Build-up", "Involvement"],
+      historySeasons: SEASONS.map(seasonLabel),
     },
     players,
   };

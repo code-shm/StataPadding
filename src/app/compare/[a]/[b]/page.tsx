@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import type { Player } from "@/lib/types";
-import { resolvePlayer } from "@/lib/data";
+import { resolvePlayer, searchIndex, toLite } from "@/lib/data";
 import {
   radarRows,
   styleMatch,
@@ -10,6 +10,7 @@ import {
   findSimilar,
   fmt,
 } from "@/lib/metrics";
+import MultiCompareControl from "@/components/MultiCompareControl";
 import { getScoutReport } from "@/lib/scout";
 import Radar from "@/components/Radar";
 import CompareBars from "@/components/CompareBars";
@@ -171,6 +172,9 @@ export default async function ComparePage({ params }: Params) {
           </div>
         )}
       </section>
+
+      {/* Add a third player → multi-compare */}
+      <MultiCompareControl index={searchIndex()} current={[a, b].map(toLite)} compact />
 
       {/* Radar + bars */}
       <section className="grid gap-6 lg:grid-cols-2">

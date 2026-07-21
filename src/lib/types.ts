@@ -40,6 +40,23 @@ export interface Per90 {
   xGBuildup: number;
 }
 
+/** One past/current season in a player's career trajectory. */
+export interface SeasonRecord {
+  season: string;
+  league: LeagueCode;
+  team: string;
+  minutes: number;
+  per90: {
+    goals: number;
+    xG: number;
+    assists: number;
+    xA: number;
+    npxG: number;
+    goalInvolvements: number;
+  };
+  totals: { goals: number; assists: number; xG: number };
+}
+
 /** Premier League-only enrichment from FPL (null for other leagues). */
 export interface FplEnrich {
   form: number;
@@ -74,6 +91,7 @@ export interface Player {
   minutes: number;
   games: number;
   overall: number;
+  history: SeasonRecord[];
   totals: Totals;
   per90: Per90;
   fpl: FplEnrich | null;
@@ -100,6 +118,7 @@ export interface Dataset {
     leagueCounts: Record<string, number>;
     styleDims: string[];
     radarAxes: RadarAxis[];
+    historySeasons: string[];
   };
   players: Player[];
 }

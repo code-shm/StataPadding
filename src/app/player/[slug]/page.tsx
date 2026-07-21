@@ -8,6 +8,7 @@ import SimilarList from "@/components/SimilarList";
 import PlayerPhoto from "@/components/PlayerPhoto";
 import LeagueBadge from "@/components/LeagueBadge";
 import CountUp from "@/components/CountUp";
+import TrajectoryChart from "@/components/TrajectoryChart";
 
 interface Params {
   params: { slug: string };
@@ -124,6 +125,18 @@ export default function PlayerPage({ params }: Params) {
           </div>
         </div>
       </section>
+
+      {/* Career trajectory */}
+      {p.history.length >= 2 && (
+        <section className="glass p-6">
+          <h2 className="display text-lg text-white">Career trajectory</h2>
+          <p className="mb-4 text-sm text-slate-400">
+            Goal involvements vs expected (xG + xA) per 90, across the last{" "}
+            {p.history.length} seasons — league shown beneath each point.
+          </p>
+          <TrajectoryChart history={p.history} accent={accent} />
+        </section>
+      )}
 
       {/* Similar players */}
       <section>
