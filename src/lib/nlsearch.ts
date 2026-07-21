@@ -39,10 +39,52 @@ const POS_KWS: Array<[RegExp, Position]> = [
 function findByName(name: string): Player | undefined {
   const q = norm(name).trim();
   if (q.length < 2) return undefined;
-  const hits = players.filter((p) => norm(p.name).includes(q) || norm(p.webName).includes(q));
+  const hits = players.filter(
+    (p) => norm(p.name).includes(q) || norm(p.webName).includes(q)
+  );
   if (!hits.length) return undefined;
-  // Prefer the most prominent (highest overall) match.
-  return hits.sort((a, b) => b.overall - a.overall)[0];
+  // Rank exact / whole-word matches above loose substring matches, then by fame.
+  const score = (p: Player) => {
+    const nm = norm(p.name);
+    const wn = norm(p.webName);
+    if (wn === q || nm === q) return 4;
+    if (nm.split(" ").includes(q) || wn.split(" ").includes(q)) return 3;
+    if (nm.startsWith(q) || wn.startsWith(q)) return 2;
+    return 1;
+  };
+  return hits.sort((a, b) => score(b) - score(a) || b.overall - a.overall)[0];
+}
+
+// Words that end the player name in a "like X …" clause.
+const STOPWORDS = new Set([
+  "who", "whos", "that", "which", "in", "from", "playing", "plays", "play",
+  "played", "with", "under", "at", "for", "the", "a", "an", "of", "on", "and",
+  "but", "when", "currently", "now", "this", "last", "season", "league",
+  "style", "type", "based", "born",
+]);
+
+// Extract the target player from a "like / similar to X" clause, tolerating
+// trailing qualifiers ("like pedri who plays in la liga" → "pedri").
+function extractLikeTarget(raw: string): Player | undefined {
+  const kw = raw.match(
+    /\b(?:like|similar to|comparable to|in the mould of|reminds me of|such as|a la)\b/i
+  );
+  if (!kw) return undefined;
+  const after = norm(raw.slice((kw.index ?? 0) + kw[0].length));
+  const tokens = after.split(/\s+/).filter(Boolean);
+  const nameTokens: string[] = [];
+  for (const t of tokens) {
+    if (STOPWORDS.has(t)) break;
+    nameTokens.push(t);
+    if (nameTokens.length >= 4) break;
+  }
+  // Try the longest candidate first so multi-word names resolve before a bare
+  // surname ("kevin de bruyne" before "kevin").
+  for (let len = nameTokens.length; len >= 1; len--) {
+    const player = findByName(nameTokens.slice(0, len).join(" "));
+    if (player) return player;
+  }
+  return undefined;
 }
 
 export function parseQuery(raw: string): Interpretation {
@@ -69,12 +111,9 @@ export function parseQuery(raw: string): Interpretation {
     interp.sort = "creation";
   else if (/\b(shot|shooters?|volume|trigger)\b/.test(q)) interp.sort = "shots";
 
-  // "like X" / "similar to X"
-  const like = raw.match(/\b(?:like|similar to|comparable to|in the mould of)\s+([A-Za-zÀ-ÿ'’.\- ]{2,40})$/i);
-  if (like) {
-    const player = findByName(like[1]);
-    if (player) interp.like = { name: player.name, slug: player.slug, id: player.id };
-  }
+  // "like X" / "similar to X" — tolerant of trailing "who plays in …" clauses.
+  const target = extractLikeTarget(raw);
+  if (target) interp.like = { name: target.name, slug: target.slug, id: target.id };
 
   return interp;
 }
