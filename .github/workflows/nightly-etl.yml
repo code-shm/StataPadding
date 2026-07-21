@@ -1,0 +1,35 @@
+name: Nightly ETL
+
+# Refreshes src/data/players.json from Understat + FPL every night and commits
+# it back, so the deployed app always serves current-season data without any
+# external API calls on the request path.
+
+on:
+  schedule:
+    - cron: "0 5 * * *" # 05:00 UTC daily
+  workflow_dispatch: {} # allow manual runs
+
+permissions:
+  contents: write
+
+jobs:
+  etl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run ETL
+        run: node scripts/etl.mjs
+      - name: Commit refreshed dataset
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data/players.json
+          if git diff --staged --quiet; then
+            echo "No data changes to commit."
+          else
+            git commit -m "chore: nightly data refresh"
+            git push
+          fi

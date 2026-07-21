@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --home: #22d3ee;
+  --away: #f0559b;
+}
+
+html {
+  color-scheme: dark;
+}
+
+/* Defined explicitly (not just in the Tailwind theme) because `.reveal` below
+   references it from raw CSS — Tailwind only emits @keyframes for animate-*
+   utilities that appear in markup, so this keyframe would otherwise be missing
+   and leave every .reveal element stuck at opacity:0. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Content must remain visible if animations are disabled. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1 !important;
+    animation: none !important;
+  }
+}
+
+body {
+  @apply bg-ink-950 text-slate-200 antialiased;
+  background-image:
+    radial-gradient(60rem 40rem at 50% -10rem, rgba(34, 211, 238, 0.1), transparent 70%),
+    radial-gradient(50rem 40rem at 90% 10%, rgba(240, 85, 155, 0.08), transparent 70%);
+  background-attachment: fixed;
+}
+
+/* thin custom scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #262c4d transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #262c4d;
+  border-radius: 999px;
+}
+
+@layer components {
+  .glass {
+    @apply rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm;
+    box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.8);
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-300;
+  }
+  .stat-num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .display {
+    letter-spacing: -0.03em;
+    font-weight: 800;
+  }
+}
+
+@layer utilities {
+  .text-home {
+    color: var(--home);
+  }
+  .text-away {
+    color: var(--away);
+  }
+  .bg-home {
+    background-color: var(--home);
+  }
+  .bg-away {
+    background-color: var(--away);
+  }
+  /* staggered reveal helper */
+  .reveal {
+    opacity: 0;
+    animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+}
